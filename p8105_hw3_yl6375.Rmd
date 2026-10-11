@@ -28,6 +28,221 @@ ny_noaa |>
 
 
 #Problem 2
+```{r}
+nhanes_covar = read_csv("./data/nhanes_covar.csv")
+
+nhanes_accel = read_csv("./data/nhanes_accel.csv")
+
+# Check dimensions
+dim(nhanes_covar)
+dim(nhanes_accel)
+
+# Check variable names
+names(nhanes_covar)
+names(nhanes_accel)
+
+# Check data structure
+glimpse(nhanes_covar)
+glimpse(nhanes_accel)
+```
+```{r}
+#better show the data
+nhanes_covar = read_csv(
+  "./data/nhanes_covar.csv",
+  skip = 4,
+  show_col_types = FALSE
+) |>
+  janitor::clean_names() |>
+  mutate(
+    seqn = as.numeric(seqn),
+    sex = factor(
+      sex,
+      levels = c(1, 2),
+      labels = c("Male", "Female")
+    ),
+    education = factor(
+      education,
+      levels = c(1, 2, 3),
+      labels = c(
+        "Less than high school",
+        "High school equivalent",
+        "More than high school"
+      )
+    )
+  ) |>
+  filter(
+    age >= 21,
+    !is.na(seqn),
+    !is.na(sex),
+    !is.na(age),
+    !is.na(bmi),
+    !is.na(education)
+  )
+
+glimpse(nhanes_covar)
+dim(nhanes_covar)
+```
+```{r}
+#merge data
+nhanes_accel = nhanes_accel |>
+  janitor::clean_names()
+
+glimpse(nhanes_accel)
+
+nhanes_merged = nhanes_covar |>
+  inner_join(nhanes_accel, by = "seqn")
+
+dim(nhanes_merged)
+```
+```{r}
+# Tidy accelerometer data
+nhanes_tidy = nhanes_merged |>
+  pivot_longer(
+    cols = starts_with("min"),
+    names_to = "minute",
+    values_to = "mims"
+  ) |>
+  mutate(
+    minute = as.numeric(
+      stringr::str_remove(minute, "min")
+    )
+  )
+
+# Check the data
+dim(nhanes_tidy)
+glimpse(nhanes_tidy)
+```
+#(b) create the table we need
+```{r}
+# Count participants by education and sex
+education_table = nhanes_tidy |>
+  distinct(seqn, sex, education) |>
+  count(education, sex) |>
+  pivot_wider(
+    names_from = sex,
+    values_from = n,
+    values_fill = 0
+  )
+
+knitr::kable(
+  education_table,
+  caption = "Number of Men and Women by Education Level"
+)
+```
+# There are 228 participants, including 118 men and 110 women. Most participants have more than a high school education (115 participants). Men and women have similar counts in the lowest and highest education groups, while the high school equivalent group has more men than women.
+
+```{r}
+# Age distribution by sex and education, here we use a boxplot
+nhanes_covar |>
+  ggplot(aes(x = sex, y = age, fill = sex)) +
+  geom_boxplot(alpha = 0.7) +
+  facet_wrap(~ education) +
+  labs(
+    title = "Age Distribution by Sex and Education Level",
+    x = "Sex",
+    y = "Age (years)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    strip.text = element_text(size = 11),
+    axis.text = element_text(size = 10),
+    legend.position = "none"
+  )
+```
+# The age distributions differ across education levels. Participants with more than a high school education tend to be younger than those in the other groups. In the high school equivalent group, women have a higher median age than men. In the less than high school group, men and women have similar age distributions.
+
+```{r}
+# Calculate total daily activity
+nhanes_total = nhanes_tidy |>
+  group_by(seqn, sex, age, bmi, education) |>
+  summarize(
+    total_activity = sum(mims, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Check results
+dim(nhanes_total)
+head(nhanes_total)
+```
+```{r}
+# Plot total daily activity against age
+nhanes_total |>
+  ggplot(aes(
+    x = age,
+    y = total_activity,
+    color = sex
+  )) +
+  geom_point(alpha = 0.6, size = 2) +
+  geom_smooth(
+    method = "loess",
+    se = FALSE
+  ) +
+  facet_wrap(~ education) +
+  labs(
+    title = "Total Daily Activity by Age, Sex, and Education",
+    x = "Age (years)",
+    y = "Total Daily Activity (MIMS)",
+    color = "Sex"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    strip.text = element_text(size = 11),
+    axis.text = element_text(size = 10),
+    legend.position = "bottom"
+  )
+```
+#The plot shows that total daily activity generally decreases as age increases. This pattern appears in all three education groups. Men and women have similar overall trends, although women tend to have higher activity levels in some age ranges. The group with more than high school education shows a relatively gradual decrease in activity, while the other two groups show more variation. Overall, age appears to be related to daily activity, but there are also differences between individuals.
+
+
+```{r}
+#final step of problem 2
+# Calculate average activity for each minute
+nhanes_hourly = nhanes_tidy |>
+  group_by(education, sex, minute) |>
+  summarize(
+    mean_mims = mean(mims, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(
+    hour = (minute - 1) / 60
+  )
+
+# Check results
+dim(nhanes_hourly)
+head(nhanes_hourly)
+```
+```{r}
+# Plot 24-hour activity patterns
+nhanes_hourly |>
+  ggplot(aes(x = hour, y = mean_mims, color = sex)) +
+  geom_line(alpha = 0.5) +
+  geom_smooth(
+    method = "loess",
+    se = FALSE,
+    span = 0.15
+  ) +
+  facet_wrap(~ education, nrow = 1) +
+  scale_x_continuous(breaks = seq(0, 24, 4)) +
+  labs(
+    title = "24-Hour Activity Patterns by Sex and Education",
+    x = "Hour of Day",
+    y = "Average Activity (MIMS)",
+    color = "Sex"
+  ) +
+  theme_minimal()
+```
+#The plot shows that daily activity follows a similar pattern across all three education groups. Activity is lowest during the early morning, around 3–5 AM, and increases quickly after 6 AM. Activity is generally highest during the daytime and decreases again in the evening. Women tend to have higher activity levels than men during the day, especially in the group with more than high school education. The group with less than high school education has a higher peak around noon, while the other groups show more stable daytime activity. Overall, daily activity patterns are similar across education levels, but there are some differences between men and women.
+
+
+
+
+
+
+
+
+
 
 
 
