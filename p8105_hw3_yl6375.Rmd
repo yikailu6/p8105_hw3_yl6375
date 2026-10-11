@@ -27,6 +27,7 @@ ny_noaa |>
 #By observing the result, we can get that the NY NOAA dataset contains 2,595,176 observations and 7 variables. It includes weather station IDs, dates, precipitation, snowfall, snow depth, maximum temperature, and minimum temperature. The dataset contains character, date, and numeric variables. Missing data is an important issue, especially for maximum and minimum temperatures, which both have about 43.7% missing values. Snow depth has 22.8% missing values, while snowfall and precipitation have 14.7% and 5.6% missing values, respectively. Station IDs and dates have no missing values.
 
 
+#Problem 2
 
 
 
